@@ -26,32 +26,31 @@ class GeminiMarkdownToCSVConverter:
         """
         return """Bạn là một chuyên gia xử lý dữ liệu cấm vận. Nhiệm vụ của bạn là trích xuất thông tin từ file markdown chứa danh sách cấm vận và chuyển đổi thành format CSV với các trường sau:
 
-**Cấu trúc CSV yêu cầu:**
-1. **Name**: Tên đầy đủ (ký tự Latin, loại bỏ tiền tố pháp lý không cần thiết)
-2. **Aliases**: Các tên khác, bí danh (phân cách bằng dấu phẩy nếu có nhiều)
-3. **Type**: Individual/Entity/Vessel/Port/Airport
-4. **Date of Birth**: dd.mm.yyyy hoặc dd/mm/yyyy (chỉ với cá nhân)
-5. **Place of Birth**: Nơi sinh (chỉ với cá nhân)
-6. **Gender**: Male/Female/Unknown (chỉ với cá nhân)
-7. **Nationality**: Quốc tịch
-8. **COUNTRY**: Mã quốc gia (RU, CN, TR, US, v.v.)
-9. **ID_1**: Số định danh chính (IMO, Registration Number, INN, Passport, v.v.)
-10. **ID_Type1**: Loại ID_1
-11. **ID_2**: Số định danh phụ (nếu có)
-12. **ID_Type2**: Loại ID_2
-13. **Date of listing**: Ngày niêm yết (yyyy-mm-dd hoặc dd/mm/yyyy)
-14. **Watchlist**: Nguồn danh sách (ví dụ: "EU Sanctions List")
-15. **Other info**: Thông tin bổ sung (địa chỉ, lý do, ghi chú)
-16. **DOB_DJ**: Năm sinh hoặc ngày sinh định dạng Dow Jones
-17. **DOB_YEAR**: Năm sinh (yyyy)
+Cấu trúc CSV yêu cầu:
+Name: Tên đầy đủ (ký tự Latin, loại bỏ tiền tố pháp lý không cần thiết)
+Aliases: Các tên khác, bí danh (phân cách bằng dấu chấm phẩy nếu có nhiều)
+Type: Individual/Entity/Vessel/Port/Airport/Airplane
+Date of Birth: dd.mm.yyyy hoặc dd/mm/yyyy (chỉ với cá nhân)
+Place of Birth: Nơi sinh (chỉ với cá nhân)
+Gender: Male/Female/Unknown (chỉ với cá nhân)
+Nationality: Quốc tịch
+COUNTRY: quốc gia (theo địa chỉ hoặc quốc tịch hoặc ngữ cảnh)
+ID_1: Số định danh chính (IMO, Registration Number, INN, Passport, v.v.)
+ID_Type1: Loại ID_1
+ID_2: Số định danh phụ (nếu có)
+ID_Type2: Loại ID_2
+Date of listing: Ngày niêm yết (yyyy-mm-dd hoặc dd/mm/yyyy)
+Watchlist: Nguồn danh sách là mã REGULATION hoặc DECISION ở đầu văn bản (ví dụ: "2025/1578")
+Other info: Thông tin bổ sung (địa chỉ, lý do, ghi chú)
+DOB_DJ: Năm sinh hoặc ngày sinh (định dạng 20 Jun 2023 hoặc 2023)
+DOB_YEAR: Năm sinh (yyyy)
 
-**Quy tắc xử lý:**
-- Làm sạch tên để chỉ chứa ký tự Latin
-- Xác định Type dựa trên ngữ cảnh (công ty = Entity, tàu = Vessel, v.v.)
-- Suy ra COUNTRY từ địa chỉ hoặc ngữ cảnh
-- Trích xuất các số định danh từ văn bản (IMO, INN, Registration Number, v.v.)
-- Đặt giá trị trống cho các trường không có thông tin
-- Đảm bảo định dạng ngày tháng nhất quán
+Quy tắc xử lý:
+Làm sạch tên để chỉ chứa ký tự Latin
+Xác định Type dựa trên ngữ cảnh (công ty = Entity, tàu = Vessel, v.v.)
+Suy ra COUNTRY từ địa chỉ hoặc ngữ cảnh
+Trích xuất các số định danh từ văn bản (IMO, INN, Registration Number, v.v.)
+Đặt giá trị "None" cho các trường không có thông tin
 
 Hãy trả lời CHÍNH XÁC bằng format CSV, không giải thích thêm."""
 
