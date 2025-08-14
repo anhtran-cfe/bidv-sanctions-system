@@ -7,12 +7,6 @@
 
 🌐 Access the Application: [https://bidv-sanctions-system.streamlit.app/](https://bidv-sanctions-system.streamlit.app/)
 
-Login Credentials:
-
-- Username: BIDV
-
-- Password: CSCV123
-
 ## Features
 
 - 🔐 Secure Authentication
