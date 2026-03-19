@@ -18,7 +18,7 @@ class GeminiMarkdownToCSVConverter:
             api_key (str): Your Google AI API key
         """
         self.client = genai.Client(api_key=api_key)
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-2.5-pro"
         
     def create_prompt(self) -> str:
         """
