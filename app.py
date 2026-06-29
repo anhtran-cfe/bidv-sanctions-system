@@ -4,6 +4,7 @@ import io
 import base64
 import time
 import os
+import re
 from datetime import datetime
 import tempfile
 import zipfile
@@ -26,6 +27,51 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+def get_gemini_api_keys():
+    """Collect all configured Gemini API keys from Streamlit secrets.
+
+    Supported formats (checked in this order, then de-duplicated):
+      - GEMINI_API_KEYS: a TOML list, e.g. ["key1", "key2", ...],
+        or a comma/newline-separated string.
+      - GEMINI_API_KEY_1 ... GEMINI_API_KEY_N: individually numbered keys.
+      - GEMINI_API_KEY: a single key (backward compatible).
+
+    Returns a de-duplicated list of non-empty key strings.
+    """
+    keys = []
+
+    # 1) List form
+    try:
+        bundle = st.secrets.get("GEMINI_API_KEYS", None)
+    except Exception:
+        bundle = None
+    if bundle:
+        if isinstance(bundle, (list, tuple)):
+            keys.extend(str(k).strip() for k in bundle)
+        elif isinstance(bundle, str):
+            keys.extend(part.strip() for part in re.split(r"[,\n]", bundle))
+
+    # 2) Numbered form: GEMINI_API_KEY_1 .. _N
+    for i in range(1, 51):
+        k = st.secrets.get(f"GEMINI_API_KEY_{i}", "")
+        if k:
+            keys.append(str(k).strip())
+
+    # 3) Single form (backward compatible)
+    single = st.secrets.get("GEMINI_API_KEY", "")
+    if single:
+        keys.append(str(single).strip())
+
+    # De-duplicate, preserve order, drop empties.
+    seen = set()
+    result = []
+    for k in keys:
+        if k and k not in seen:
+            seen.add(k)
+            result.append(k)
+    return result
+
 
 # Authentication function
 def check_authentication():
@@ -84,8 +130,8 @@ def pdf_to_markdown(pdf_file):
         st.error(f"Error converting PDF: {e}")
         return None
 
-def process_with_gemini(markdown_content, api_key):
-    """Process markdown with Gemini API"""
+def process_with_gemini(markdown_content, api_keys):
+    """Process markdown with Gemini API (accepts a single key or a list of keys)."""
     try:
         # Convert to base64
         converter_base64 = MarkdownBase64Converter()
@@ -94,8 +140,8 @@ def process_with_gemini(markdown_content, api_key):
         if not base64_result['success']:
             return None, f"Base64 conversion failed: {base64_result['error']}"
         
-        # Process with Gemini
-        converter_gemini = GeminiMarkdownToCSVConverter(api_key)
+        # Process with Gemini (round-robin + failover across all provided keys)
+        converter_gemini = GeminiMarkdownToCSVConverter(api_keys)
         result = converter_gemini.convert_markdown_to_csv(
             markdown_content=base64_result['base64_content'],
             is_base64=True
@@ -206,10 +252,11 @@ def dashboard_page():
         st.success("✅ PDF Converter: Ready")
         st.success("✅ Base64 Converter: Ready")
         
-        # Check Gemini API
-        gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+        # Check Gemini API (key pool)
+        gemini_api_key = get_gemini_api_keys()
         if gemini_api_key:
-            st.success("✅ Gemini API: Connected")
+            _n = len(gemini_api_key)
+            st.success(f"✅ Gemini API: Connected ({_n} key{'s' if _n > 1 else ''})")
         else:
             st.warning("⚠️ Gemini API: Not configured")
     
@@ -222,10 +269,10 @@ def pdf_processing_page():
     """PDF processing page"""
     st.title("📄 PDF Processing")
     
-    # Check API key
-    gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+    # Check API key(s)
+    gemini_api_key = get_gemini_api_keys()
     if not gemini_api_key:
-        st.error("❌ Gemini API Key not configured. Please set GEMINI_API_KEY in Streamlit secrets.")
+        st.error("❌ Gemini API Key not configured. Please set GEMINI_API_KEYS (or GEMINI_API_KEY) in Streamlit secrets.")
         return
     
     # File upload
@@ -400,10 +447,10 @@ def batch_processing_page():
     """Batch processing page"""
     st.title("⚙️ Batch Processing")
     
-    # Check API key
-    gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+    # Check API key(s)
+    gemini_api_key = get_gemini_api_keys()
     if not gemini_api_key:
-        st.error("❌ Gemini API Key not configured. Please set GEMINI_API_KEY in Streamlit secrets.")
+        st.error("❌ Gemini API Key not configured. Please set GEMINI_API_KEYS (or GEMINI_API_KEY) in Streamlit secrets.")
         return
     
     # Multiple file upload

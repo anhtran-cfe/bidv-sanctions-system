@@ -7,6 +7,7 @@ from google.genai import types
 import pandas as pd
 from typing import List, Dict, Any
 import re
+import random
 from datetime import datetime
 
 class GeminiMarkdownToCSVConverter:
@@ -17,8 +18,44 @@ class GeminiMarkdownToCSVConverter:
         Args:
             api_key (str): Your Google AI API key
         """
-        self.client = genai.Client(api_key=api_key)
+        # Normalize to a clean list of non-empty keys. Accepts either a single
+        # key string (backward compatible) or a list/tuple of keys for
+        # round-robin load-balancing + automatic failover.
+        if isinstance(api_key, (list, tuple)):
+            self.api_keys = [str(k).strip() for k in api_key if k and str(k).strip()]
+        else:
+            self.api_keys = [str(api_key).strip()] if api_key and str(api_key).strip() else []
+
+        if not self.api_keys:
+            raise ValueError("No Gemini API key provided")
+
         self.model = "gemini-2.5-flash"
+        # One cached client per key (created lazily on first use).
+        self._clients = {}
+        # Randomized round-robin start so parallel sessions/users don't all
+        # hammer the same key first.
+        self._rr_index = random.randrange(len(self.api_keys))
+
+    def _get_client(self, api_key: str):
+        """Return a cached genai.Client for the given API key."""
+        client = self._clients.get(api_key)
+        if client is None:
+            client = genai.Client(api_key=api_key)
+            self._clients[api_key] = client
+        return client
+
+    @staticmethod
+    def _is_retryable_error(error: Exception) -> bool:
+        """True for rate-limit / quota / transient errors that are worth
+        retrying on a different API key."""
+        msg = str(error).lower()
+        markers = [
+            "429", "resource_exhausted", "resource exhausted", "quota",
+            "rate limit", "rate-limit", "too many requests", "exceeded",
+            "503", "unavailable", "overloaded", "500", "internal error",
+            "deadline",
+        ]
+        return any(marker in msg for marker in markers)
         
     def create_prompt(self) -> str:
         """
@@ -91,12 +128,34 @@ Hãy trả lời CHÍNH XÁC bằng format CSV, không giải thích thêm."""
                 thinking_config=types.ThinkingConfig(thinking_budget=-1),
             )
             
-            # Generate response
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=contents,
-                config=generate_content_config,
-            )
+            # Generate response, trying each API key in round-robin order and
+            # failing over to the next key on rate-limit / quota / transient
+            # errors.
+            n = len(self.api_keys)
+            response = None
+            last_error = None
+            for attempt in range(n):
+                api_key = self.api_keys[(self._rr_index + attempt) % n]
+                try:
+                    response = self._get_client(api_key).models.generate_content(
+                        model=self.model,
+                        contents=contents,
+                        config=generate_content_config,
+                    )
+                    # Advance the pointer so the next call starts at the
+                    # following key (spreads load across all keys).
+                    self._rr_index = (self._rr_index + attempt + 1) % n
+                    break
+                except Exception as key_error:
+                    last_error = key_error
+                    if n > 1 and self._is_retryable_error(key_error):
+                        continue
+                    raise
+            if response is None:
+                raise Exception(
+                    f"All {n} Gemini API key(s) failed (rate-limited/quota). "
+                    f"Last error: {last_error}"
+                )
             
             return response.text
             
